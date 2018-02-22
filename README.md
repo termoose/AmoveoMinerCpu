@@ -2,11 +2,10 @@
 Amoveo Cryptocurrency Miner for Cpu work to be used with http://AmoveoPool.com
 
 Usage Template:
-
-AmoveoMinerCpu.exe <WalletAddress> <Threads> <PoolUrl>
+  AmoveoMinerCpu.exe {WalletAddress} {Threads} {PoolUrl}
+  Threads is optional and defaults to 4.
+  PoolUrl is optional and defaults to http://amoveopool.com/work
   
-Threads is optional and defaults to 4.
-PoolUrl is optional and defaults to http://amoveopool.com/work
   
 Example Usage:  
 

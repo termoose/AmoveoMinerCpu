@@ -1,6 +1,6 @@
 # AmoveoMinerCpu
+
 Amoveo Cryptocurrency Miner for Cpu work to be used with [AmoveoPool.com](http://AmoveoPool.com)
-==========
 
 
 ## Windows

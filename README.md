@@ -38,7 +38,7 @@ The Windows releases are built with Visual Studio 2015 with RestCPP, boost, and 
 
 ### Dependencies
 ```
-   sudo apt-get install libcpprest-dev libncurses5-dev libssl-dev unixodbc-dev g++ git
+sudo apt-get install libcpprest-dev libncurses5-dev libssl-dev unixodbc-dev g++ git
 ```
 
 ### Build

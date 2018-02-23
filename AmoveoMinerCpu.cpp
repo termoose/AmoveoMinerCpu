@@ -1,5 +1,25 @@
 #include <stdio.h>
+
+#define VERSION_STRING "1.0.0.1"
+#define TOOL_NAME "AmoveoMinerCpu"
+
+#ifdef _WIN32
+#include <windows.h>
 #include <tchar.h>
+
+void mySleep(unsigned milliseconds)
+{
+	Sleep(milliseconds);
+}
+#else
+#include <unistd.h>
+#include <openssl/sha.h>
+
+void mySleep(unsigned milliseconds)
+{
+	usleep(milliseconds * 1000); // takes microseconds
+}
+#endif
 
 #include <iostream>
 #include <chrono>
@@ -26,23 +46,23 @@
 #include <cpprest/http_listener.h>              // HTTP server
 #include <cpprest/json.h>                       // JSON library
 #include <cpprest/uri.h>                        // URI library
+#include <cpprest/asyncrt_utils.h>
 
+#include <openssl/sha.h>
 #include "base64.h"
-#include "sha256.h"
 
+typedef unsigned char BYTE;             // 8-bit byte
 
 using namespace std;
 using namespace std::chrono;
 
-using namespace utility;                    // Common utilities like string conversions
-using namespace web;                        // Common features like URIs.
-using namespace web::http;                  // Common HTTP functionality
-using namespace web::http::client;          // HTTP client features
-using namespace concurrency::streams;       // Asynchronous streams
-
+using namespace utility;									// Common utilities like string conversions
+using namespace web;										// Common features like URIs.
+using namespace web::http;									// Common HTTP functionality
+using namespace web::http::client;							// HTTP client features
+using namespace concurrency::streams;						// Asynchronous streams
 using namespace web::http::experimental::listener;          // HTTP server
 using namespace web::json;                                  // JSON library
-
 
 json::array GetWork(string minerPublicKeyBase64);
 void SubmitWork(string nonceBase64, string minerPublicKeyBase64);
@@ -73,11 +93,11 @@ int gElapsedSecMax = 5;
 string gMinerPublicKeyBase64(MINER_ADDRESS);
 int gMinerThreads = MINER_THREADS;
 string gPoolUrl(POOL_URL);
-wstring gPoolUrlW;
+string_t gPoolUrlW;
 
 class Metrics
 {
-	_int64 hashesTried;
+	int64_t hashesTried;
 	int blocksFound;
 	std::mutex mutex;
 public:
@@ -85,7 +105,7 @@ public:
 		hashesTried = 0;
 		blocksFound = 0;
 	}
-	_int64 getHashesTried() { return hashesTried; }
+	int64_t getHashesTried() { return hashesTried; }
 	void addHashesTried(int hashCount)
 	{
 		mutex.lock();
@@ -94,21 +114,7 @@ public:
 	}
 };
 
-#ifdef _WIN32
-#include <windows.h>
 
-void sleep(unsigned milliseconds)
-{
-	Sleep(milliseconds);
-}
-#else
-#include <unistd.h>
-
-void sleep(unsigned milliseconds)
-{
-	usleep(milliseconds * 1000); // takes microseconds
-}
-#endif
 
 // Prints a 32 bytes sha256 to the hexadecimal form filled with zeroes
 void print_hash(const unsigned char* sha256) {
@@ -176,10 +182,10 @@ int check_pow(vector<BYTE> nonce, int blockDifficulty, int shareDifficulty, vect
 	for (int i = 0; i < 32; i++)
 		text[i + 34] = nonce[i];
 	SHA256_CTX ctx;
-	sha256_init(&ctx);
-	sha256_update(&ctx, text, 66);
+	SHA256_Init(&ctx);
+	SHA256_Update(&ctx, text, 66);
 	vector<BYTE> buf(32);
-	sha256_final(&ctx, &buf[0]);
+	SHA256_Final(&buf[0], &ctx);
 	int i = hash2integer(buf);
 	return(i >= shareDifficulty);
 }
@@ -252,7 +258,8 @@ void GetThreadData(MinerThreadData * pData)
 	json::array workDataArray = GetWork(gMinerPublicKeyBase64);
 
 	if (USE_SHARE_POOL == 1) {
-		wstring wBHhashBase64(workDataArray.at(1).as_string().c_str());
+		//wstring wBHhashBase64(workDataArray.at(1).as_string().c_str());
+		wstring wBHhashBase64(workDataArray.at(1).as_string().begin(), workDataArray.at(1).as_string().end());
 		string bhashBase64(wBHhashBase64.begin(), wBHhashBase64.end());
 		string bhashString = base64_decode(bhashBase64);
 		vector<BYTE> bhash(bhashString.begin(), bhashString.end());
@@ -264,7 +271,8 @@ void GetThreadData(MinerThreadData * pData)
 		int shareDifficulty = workDataArray.at(3).as_integer();
 		pData->shareDifficulty = shareDifficulty;
 	} else {
-		wstring wBHhashBase64(workDataArray.at(1).as_string().c_str());
+		//wstring wBHhashBase64(workDataArray.at(1).as_string().c_str());
+		wstring wBHhashBase64(workDataArray.at(1).as_string().begin(), workDataArray.at(1).as_string().end());
 		string bhashBase64(wBHhashBase64.begin(), wBHhashBase64.end());
 		string bhashString = base64_decode(bhashBase64);
 		vector<BYTE> bhash(bhashString.begin(), bhashString.end());
@@ -287,6 +295,7 @@ void GetThreadData(MinerThreadData * pData)
 
 int main(int argc, char* argv[])
 {
+	cout << TOOL_NAME << " v" << VERSION_STRING << endl;
 	if (argc <= 1) {
 		cout << "Example Template: " << endl;
 		cout << argv[0] << " " << "<Base64AmoveoAddress>" << " " << "<Threads>" << " " << "<PoolUrl>" << endl;
@@ -323,20 +332,19 @@ int main(int argc, char* argv[])
 	Metrics metrics;
 	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
-	_int64 hashPerSecond = 0;
-	_int64 sharesFoundTotal = 0;
-	_int64 secPerHour = 60 * 60;
+	int64_t sharesFoundTotal = 0;
+	int64_t secPerHour = 60 * 60;
 
 	MinerThreadData minerThreadData;
 	GetThreadData(&minerThreadData);
 	std::chrono::steady_clock::time_point workDataBegin = std::chrono::steady_clock::now();
 
 	int elapsedSecThreshold = gElapsedSecMax;
-	_int64 elapsedSec;
+	int64_t elapsedSec;
 
 	while (true)
 	{
-		std::atomic_bool run = true;
+		std::atomic_bool run(true);
 
 		bool anyMinerSucceeded = false;
 
@@ -344,9 +352,9 @@ int main(int argc, char* argv[])
 		vector<vector<BYTE>> minerNonces;
 		for (int idx = 0; idx < gMinerThreads; idx++) {
 			// There must be a better way to generate random nonces for each thread to use.
-			sha256_init(&ctx);
-			sha256_update(&ctx, (BYTE*)&id, sizeof(id));
-			sha256_final(&ctx, &hashBuf[0]);
+			SHA256_Init(&ctx);
+			SHA256_Update(&ctx, (BYTE*)&id, sizeof(id));
+			SHA256_Final(&hashBuf[0], &ctx);
 			id = *((unsigned int*)&hashBuf[0]);
 
 			vector<BYTE> threadNonce(hashBuf);
@@ -368,7 +376,7 @@ int main(int argc, char* argv[])
 			std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
 			elapsedSec = std::chrono::duration_cast<std::chrono::seconds>(now - workDataBegin).count();
 
-			long secondDuration = std::chrono::duration_cast<std::chrono::seconds>(now - begin).count();
+			int64_t secondDuration = std::chrono::duration_cast<std::chrono::seconds>(now - begin).count();
 			cout << "H/S: " << metrics.getHashesTried() / secondDuration << " S:" << sharesFoundTotal << " S/Hr:" << (sharesFoundTotal * secPerHour) / secondDuration << endl;
 
 		} while (anyMinerSucceeded == false && elapsedSec < elapsedSecThreshold);
@@ -402,10 +410,14 @@ int main(int argc, char* argv[])
 
 
 
-static void SubmitWork(string nonceBase64, string minerPublicKeyBase64)
+void SubmitWork(string nonceBase64, string minerPublicKeyBase64)
 {
 	try {
+#ifdef _WIN32
 		http_client client(gPoolUrlW);
+#else
+		http_client client(gPoolUrlW);
+#endif
 		http_request request(methods::POST);
 		std::stringstream body;
 		body << "[\"work\",\"" << nonceBase64 << "\",\"" << minerPublicKeyBase64 << "\"]";
@@ -451,7 +463,7 @@ json::array GetWork(string minerPublicKeyBase64)
 				// Need to use extract_vector and then convert to string and then to json
 				std::vector<unsigned char> responseData = response.extract_vector().get();
 
-				wstring responseString(responseData.begin(), responseData.end());
+				string_t responseString(responseData.begin(), responseData.end());
 
 				json::value jsonResponse = json::value::parse(responseString);
 				json::array dataArray = jsonResponse.as_array();
@@ -460,11 +472,11 @@ json::array GetWork(string minerPublicKeyBase64)
 			}
 			else {
 				wcout << "ERROR: GetWork: " << response.status_code() << " Sleep and retry..."<< endl;
-				sleep(3000);
+				mySleep(3000);
 			}
 		} catch( ... ) {
 			wcout << "ERROR: GetWork failed. Sleep and retry..." << endl;
-			sleep(3000);
+			mySleep(3000);
 		}
 	} while(!success);
 }

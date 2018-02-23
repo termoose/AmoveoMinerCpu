@@ -146,7 +146,6 @@
   <ItemGroup>
     <ClCompile Include="AmoveoMinerCpu.cpp" />
     <ClCompile Include="base64.cpp" />
-    <ClCompile Include="sha256.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

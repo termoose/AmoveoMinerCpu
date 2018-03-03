@@ -453,7 +453,7 @@ json::array GetWork(string minerPublicKeyBase64)
 				request.set_body(body.str());
 			}
 			else {
-				request.set_body(L"[\"mining_data\"]");
+				request.set_body("[\"mining_data\"]");
 			}
 
 			http_response response = client.request(request).get();
